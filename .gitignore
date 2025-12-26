@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment and secrets
+.env
+.env.*
+*.env
+credentials.json
+secrets.yml
+
+# Docker volumes
+pgdata/
+prometheus_data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
