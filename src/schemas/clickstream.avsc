@@ -1,0 +1,101 @@
+{
+  "type": "record",
+  "name": "ClickstreamEvent",
+  "namespace": "com.pipeline.clickstream",
+  "doc": "A single user interaction event in the e-commerce clickstream.",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier (UUID v4)"
+    },
+    {
+      "name": "event_type",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["page_view", "add_to_cart", "remove_from_cart", "purchase", "search", "wishlist"]
+      },
+      "doc": "The type of user interaction"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Event timestamp in milliseconds since epoch"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc": "Anonymized user identifier"
+    },
+    {
+      "name": "session_id",
+      "type": "string",
+      "doc": "Browser session identifier"
+    },
+    {
+      "name": "product_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Product identifier (null for search/page_view without product context)"
+    },
+    {
+      "name": "product_category",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Product category for filtering and aggregation"
+    },
+    {
+      "name": "price_cents",
+      "type": ["null", "long"],
+      "default": null,
+      "doc": "Product price in cents (avoids floating-point issues)"
+    },
+    {
+      "name": "quantity",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Quantity for add_to_cart and purchase events"
+    },
+    {
+      "name": "search_query",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Search query text for search events"
+    },
+    {
+      "name": "page_url",
+      "type": "string",
+      "doc": "URL of the page where the event occurred"
+    },
+    {
+      "name": "referrer",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "HTTP referrer URL"
+    },
+    {
+      "name": "user_agent",
+      "type": "string",
+      "doc": "Browser user agent string"
+    },
+    {
+      "name": "ip_address",
+      "type": "string",
+      "doc": "Client IP address (anonymized)"
+    },
+    {
+      "name": "geo_country",
+      "type": "string",
+      "default": "US",
+      "doc": "ISO 3166-1 alpha-2 country code derived from IP"
+    },
+    {
+      "name": "geo_city",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "City name derived from IP geolocation"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "type": "record",
+  "name": "AggregatedMetrics",
+  "namespace": "com.pipeline.clickstream",
+  "doc": "Windowed aggregation result emitted at the end of each tumbling window.",
+  "fields": [
+    {
+      "name": "window_id",
+      "type": "string",
+      "doc": "Unique identifier for this window instance"
+    },
+    {
+      "name": "window_type",
+      "type": {
+        "type": "enum",
+        "name": "WindowType",
+        "symbols": ["events_per_minute", "revenue_per_5min", "session_summary"]
+      },
+      "doc": "Type of aggregation window"
+    },
+    {
+      "name": "window_start",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Window start timestamp (inclusive)"
+    },
+    {
+      "name": "window_end",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Window end timestamp (exclusive)"
+    },
+    {
+      "name": "event_count",
+      "type": "long",
+      "doc": "Total number of events in the window"
+    },
+    {
+      "name": "unique_users",
+      "type": "long",
+      "doc": "Count of distinct user IDs in the window"
+    },
+    {
+      "name": "page_views",
+      "type": "long",
+      "default": 0,
+      "doc": "Count of page_view events"
+    },
+    {
+      "name": "add_to_carts",
+      "type": "long",
+      "default": 0,
+      "doc": "Count of add_to_cart events"
+    },
+    {
+      "name": "purchases",
+      "type": "long",
+      "default": 0,
+      "doc": "Count of purchase events"
+    },
+    {
+      "name": "total_revenue_cents",
+      "type": "long",
+      "default": 0,
+      "doc": "Sum of (price_cents * quantity) for purchase events"
+    },
+    {
+      "name": "top_products",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "Top 10 product IDs by event count in this window"
+    },
+    {
+      "name": "top_categories",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "Top 5 product categories by event count"
+    },
+    {
+      "name": "emitted_at",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Timestamp when this aggregation was computed and emitted"
+    }
+  ]
+}
