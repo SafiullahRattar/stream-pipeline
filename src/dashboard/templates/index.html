@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Pipeline Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1a1d29;
+            --bg-card-hover: #22263a;
+            --text-primary: #e1e4eb;
+            --text-secondary: #8b8fa3;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-purple: #a855f7;
+            --accent-orange: #f97316;
+            --accent-red: #ef4444;
+            --border: #2a2d3a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-red);
+        }
+
+        .status-dot.connected {
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: background 0.2s;
+        }
+
+        .metric-card:hover { background: var(--bg-card-hover); }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric-value.blue { color: var(--accent-blue); }
+        .metric-value.green { color: var(--accent-green); }
+        .metric-value.purple { color: var(--accent-purple); }
+        .metric-value.orange { color: var(--accent-orange); }
+
+        .metric-subtext {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+
+        .chart-card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .bar-label {
+            width: 100px;
+            font-size: 0.8rem;
+            text-align: right;
+            color: var(--text-secondary);
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 24px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            min-width: 2px;
+        }
+
+        .bar-value {
+            width: 60px;
+            font-size: 0.8rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .event-log {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            line-height: 1.6;
+        }
+
+        .event-log .entry {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .event-log .ts {
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .event-log .type {
+            color: var(--accent-blue);
+            width: 110px;
+        }
+
+        .event-log .detail {
+            color: var(--text-primary);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Stream Pipeline &mdash; Live Dashboard</h1>
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Top-level KPIs -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Events Processed</div>
+                <div class="metric-value blue" id="totalEvents">0</div>
+                <div class="metric-subtext" id="eventsPerSec">0 events/sec</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total Revenue</div>
+                <div class="metric-value green" id="totalRevenue">$0.00</div>
+                <div class="metric-subtext" id="purchases">0 purchases</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Unique Users</div>
+                <div class="metric-value purple" id="uniqueUsers">0</div>
+                <div class="metric-subtext" id="sessions">Active sessions</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Connected Clients</div>
+                <div class="metric-value orange" id="clients">0</div>
+                <div class="metric-subtext">WebSocket connections</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Event Type Distribution (Current Window)</h3>
+                <div class="bar-chart" id="eventTypeBars">
+                    <div class="bar-row"><div class="bar-label">page_view</div><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><div class="bar-value">0</div></div>
+                    <div class="bar-row"><div class="bar-label">search</div><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><div class="bar-value">0</div></div>
+                    <div class="bar-row"><div class="bar-label">add_to_cart</div><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><div class="bar-value">0</div></div>
+                    <div class="bar-row"><div class="bar-label">purchase</div><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><div class="bar-value">0</div></div>
+                    <div class="bar-row"><div class="bar-label">wishlist</div><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><div class="bar-value">0</div></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>Top Categories</h3>
+                <div class="bar-chart" id="categoryBars"></div>
+            </div>
+        </div>
+
+        <!-- Event log -->
+        <div class="chart-card">
+            <h3>Recent Window Aggregations</h3>
+            <div class="event-log" id="eventLog"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Stream Pipeline &mdash; Real-time E-commerce Clickstream Analytics
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>
