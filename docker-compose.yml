@@ -1,0 +1,204 @@
+# ==========================================================================
+# Docker Compose stack for the real-time streaming pipeline.
+#
+# Services:
+#   - zookeeper:       ZooKeeper for Kafka coordination
+#   - kafka:           Confluent Kafka broker
+#   - schema-registry: Confluent Schema Registry for Avro schemas
+#   - postgres:        PostgreSQL for processed event storage
+#   - init-kafka:      One-shot container that creates Kafka topics
+#   - producer:        Clickstream event generator -> Kafka
+#   - consumer:        Kafka -> process -> PostgreSQL / aggregated topic
+#   - dashboard:       FastAPI + WebSocket real-time dashboard
+#   - prometheus:      Metrics collection and monitoring
+#
+# Quick start:
+#   docker compose up -d
+#   open http://localhost:8000
+# ==========================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Infrastructure
+  # --------------------------------------------------------------------------
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    hostname: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_NUM_PARTITIONS: 6
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    hostname: schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: pipeline
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline -d pipeline"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Topic initialization (runs once, then exits)
+  # --------------------------------------------------------------------------
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/setup_topics.sh:/setup_topics.sh:ro
+    entrypoint: ["/bin/bash", "/setup_topics.sh"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+  # --------------------------------------------------------------------------
+  # Application services
+  # --------------------------------------------------------------------------
+
+  producer:
+    build: .
+    command: ["python", "-m", "src.producer.producer"]
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      PRODUCER_EVENTS_PER_SECOND: "100"
+      PRODUCER_ERROR_RATE: "0.02"
+      METRICS_PORT: "9090"
+    ports:
+      - "9091:9090"
+    restart: unless-stopped
+
+  consumer:
+    build: .
+    command: ["python", "-m", "src.consumer.consumer"]
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: pipeline
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+      SINK_BATCH_SIZE: "500"
+      SINK_FLUSH_INTERVAL_SECONDS: "5"
+      WINDOW_TUMBLING_WINDOW_SECONDS: "60"
+      WINDOW_REVENUE_WINDOW_SECONDS: "300"
+      METRICS_PORT: "9090"
+    ports:
+      - "9092:9090"
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    command: ["python", "-m", "src.dashboard.app"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DASHBOARD_HOST: "0.0.0.0"
+      DASHBOARD_PORT: "8000"
+      METRICS_PORT: "9090"
+    ports:
+      - "8000:8000"
+      - "9093:9090"
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Monitoring
+  # --------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    hostname: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9094:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  prometheus_data:
